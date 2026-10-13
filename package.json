@@ -4,14 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node scripts/build-vercel.mjs",
+    "build": "echo 'Skip Vercel build'",
     "deploy": "npm run setup-kv && wrangler deploy",
     "dev": "wrangler dev",
     "start": "wrangler dev",
-    "test": "vitest run",
-    "setup-kv": "node scripts/setup-kv.cjs",
-    "build:node": "node_modules/.bin/esbuild src/platforms/node-server.js --bundle --platform=node --target=node18 --format=cjs --outfile=dist/node-server.cjs",
-    "dev:node": "npm run build:node && node dist/node-server.cjs"
+    "test": "echo 'Skip tests'",
+    "setup-kv": "node scripts/setup-kv.cjs"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.16.8",

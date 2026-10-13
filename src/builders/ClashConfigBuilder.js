@@ -683,7 +683,7 @@ export class ClashConfigBuilder extends BaseConfigBuilder {
             targetConfigUrl = decodeURIComponent(userConfigUrl);
         } else {
             // 如果什么都不传，默认使用你的主力私有模板 (请替换为你真实的 Raw 链接)
-            targetConfigUrl = "https://raw.githubusercontent.com/yootor/ACL4SSR/master/Clash/yootor_default.yaml"; 
+            targetConfigUrl = "https://raw.githubusercontent.com/yootor/Sublink-Worker-Lite/main/src/config/Adblock.yaml"; 
         }
 
         // 3. 远端拉取 YAML 模板
