@@ -230,7 +230,6 @@ export class ClashConfigBuilder extends BaseConfigBuilder {
      * 1. 不传参数 -> 默认使用内置 Adblock.yaml
      * 2. ?config=openwrt 或 adblock -> 使用对应内置模板
      * 3. ?config=https://... -> 拉取远程模板
-     * 4. ?config=kv_key -> 读取 Cloudflare KV
      */
     async loadTemplateString() {
         // 1. 未传 config 参数时，默认使用 Adblock.yaml
@@ -271,24 +270,125 @@ export class ClashConfigBuilder extends BaseConfigBuilder {
                     throw new Error(`exclude 参数正则表达式无效 "${this.excludeParam}": ${e.message}`);
                 }
             }
+            // 3.自动国旗匹配添加与生成函数
+            function addFlagToNodeName(name) {
+                // 如果节点名字里已经包含任何国旗 Emoji，直接跳过
+                if (/[\p{Regional_Indicator}]{2}/u.test(name)) {
+                    return name;
+                }
     
-            // 3. 过滤节点（同时满足不命中内置黑名单、也不命中 URL exclude 参数）
-            const proxies = this.getProxies().filter(p => {
-                if (GLOBAL_EXCLUDE_REGEX.test(p.name)) return false;
-                if (userExcludeRegex && userExcludeRegex.test(p.name)) return false;
-                return true;
-            });
+                const countryMap = {
+                    // 亚洲
+                    '香港': 'HK', 'hongkong': 'HK', 'hong kong': 'HK', 'hk': 'HK', '港': 'HK',
+                    '台湾': 'TW', 'taiwan': 'TW', 'taipei': 'TW', 'tw': 'TW', '台': 'TW',
+                    '日本': 'JP', 'japan': 'JP', 'tokyo': 'JP', 'osaka': 'JP', 'jp': 'JP', '东京': 'JP', '大阪': 'JP', '日': 'JP',
+                    '新加坡': 'SG', 'singapore': 'SG', 'sg': 'SG', '狮城': 'SG', '坡': 'SG',
+                    '韩国': 'KR', 'korea': 'KR', 'seoul': 'KR', 'kr': 'KR', '首尔': 'KR', '韩': 'KR',
+                    '澳门': 'MO', 'macau': 'MO', 'mo': 'MO',
+                    '马来西亚': 'MY', 'malaysia': 'MY', 'my': 'MY', '马来': 'MY',
+                    '越南': 'VN', 'vietnam': 'VN', 'vn': 'VN',
+                    '泰国': 'TH', 'thailand': 'TH', 'th': 'TH',
+                    '菲律宾': 'PH', 'philippines': 'PH', 'ph': 'PH',
+                    '印度': 'IN', 'india': 'IN', 'in': 'IN',
+                    '土耳其': 'TR', 'turkey': 'TR', 'tr': 'TR',
+                    '阿联酋': 'AE', 'uae': 'AE', 'dubai': 'AE', '迪拜': 'AE',
     
-            // 4.同步回写过滤后的节点列表，确保外层统计准确
+                    // 北美
+                    '美国': 'US', 'united states': 'US', 'america': 'US', 'us': 'US', 'usa': 'US', '美': 'US',
+                    '加拿大': 'CA', 'canada': 'CA', 'ca': 'CA',
+    
+                    // 欧洲
+                    '英国': 'GB', 'united kingdom': 'GB', 'britain': 'GB', 'london': 'GB', 'uk': 'GB', 'gb': 'GB', '伦敦': 'GB', '英': 'GB',
+                    '德国': 'DE', 'germany': 'DE', 'de': 'DE', '德': 'DE',
+                    '法国': 'FR', 'france': 'FR', 'fr': 'FR', '法': 'FR',
+                    '俄罗斯': 'RU', 'russia': 'RU', 'ru': 'RU', '俄': 'RU',
+                    '瑞士': 'CH', 'switzerland': 'CH', 'ch': 'CH',
+                    '荷兰': 'NL', 'netherlands': 'NL', 'nl': 'NL',
+                    '意大利': 'IT', 'italy': 'IT', 'it': 'IT',
+                    '西班牙': 'ES', 'spain': 'ES', 'es': 'ES',
+                    '瑞典': 'SE', 'sweden': 'SE', 'se': 'SE',
+                    '爱尔兰': 'IE', 'ireland': 'IE', 'ie': 'IE',
+    
+                    // 南美与拉美
+                    '阿根廷': 'AR', 'argentina': 'AR', 'ar': 'AR',
+                    '巴西': 'BR', 'brazil': 'BR', 'br': 'BR',
+                    '智利': 'CL', 'chile': 'CL', 'cl': 'CL',
+    
+                    // 大洋洲与其它
+                    '澳大利亚': 'AU', 'australia': 'AU', 'au': 'AU', '澳洲': 'AU', '澳': 'AU',
+                    '新西兰': 'NZ', 'new zealand': 'NZ', 'nz': 'NZ',
+                    '南非': 'ZA', 'south africa': 'ZA', 'za': 'ZA'
+                };
+    
+                let matchedCode = null;
+    
+                for (const [keyword, code] of Object.entries(countryMap)) {
+                    // 判断关键词是否包含中文字符
+                    const isChinese = /[\u4e00-\u9fa5]/.test(keyword);
+                    if (isChinese) {
+                        // 中文关键词直接匹配（完美识别 "C香港01"、"A新加坡" 等紧贴字母的情况）
+                        if (name.includes(keyword)) {
+                            matchedCode = code;
+                            break;
+                        }
+                    } else {
+                        // 英文关键词要求前后不能是其它英文字母（防止把 User 里的 US 误判为美国）
+                        const regex = new RegExp(`(^|[^a-zA-Z])${keyword}([^a-zA-Z]|$)`, 'i');
+                        if (regex.test(name)) {
+                            matchedCode = code;
+                            break;
+                        }
+                    }
+                }
+    
+                // 兜底：如果词典没命中，自动捕获独立的二位大写国家代码 (如 [AR], AR-01)
+                if (!matchedCode) {
+                    const excludeWords = new Set(['TCP', 'UDP', 'SSL', 'TLS', 'SSH', 'HTTP', 'VLESS', 'VMESS', 'TROJAN', 'HY2', 'ANYTLS', 'VIP', 'BGP', 'IPLC', 'IEPL']);
+                    const codeMatch = name.match(/(?:^|[^a-zA-Z])([A-Z]{2})(?=[^a-zA-Z]|$)/);
+                    if (codeMatch && !excludeWords.has(codeMatch[1])) {
+                        matchedCode = codeMatch[1];
+                    }
+                }
+    
+                // 计算并添加国旗 Emoji
+                if (matchedCode) {
+                    try {
+                        const codePoints = matchedCode
+                            .toUpperCase()
+                            .split('')
+                            .map(char => 127397 + char.charCodeAt(0));
+                        const flagEmoji = String.fromCodePoint(...codePoints);
+                        return `${flagEmoji} ${name}`;
+                    } catch (e) {
+                        // 忽略转换异常
+                    }
+                }
+    
+                return name;
+            }
+    
+        // 4. 过滤节点，并调用 addFlagToNodeName 加上国旗
+            const proxies = this.getProxies()
+                .filter(p => {
+                    if (GLOBAL_EXCLUDE_REGEX.test(p.name)) return false;
+                    if (userExcludeRegex && userExcludeRegex.test(p.name)) return false;
+                    return true;
+                })
+                .map(p => ({
+                    ...p,
+                    name: addFlagToNodeName(p.name)
+                }));
+    
+        // 5. 同步回写过滤后的节点列表
             this.config.proxies = proxies;
             const proxyNames = proxies.map(p => p.name);
-    
-            // 5. 加载模板并填入有效节点
-            const templateString = await this.loadTemplateString();
-            const finalConfig = yaml.load(templateString);
-            finalConfig.proxies = proxies;
 
-        // 遍历策略组，在后端直接完成节点筛选、排除并写入 proxies 列表
+        // 6. 加载模板并填入有效节点
+        const templateString = await this.loadTemplateString();
+        const finalConfig = yaml.load(templateString);
+        finalConfig.proxies = proxies;
+
+        // 7.遍历策略组，在后端直接完成节点筛选、排除并写入 proxies 列表
         if (Array.isArray(finalConfig['proxy-groups'])) {
             finalConfig['proxy-groups'].forEach(group => {
                 if (!Array.isArray(group.proxies)) {
