@@ -2,14 +2,14 @@ import yaml from 'js-yaml';
 import { BaseConfigBuilder } from './BaseConfigBuilder.js';
 import { addProxyWithDedup } from './helpers/proxyHelpers.js';
 import adblockTemplateYaml from '../config/Adblock.yaml';
-import openwrtTemplateYaml from '../config/openwrt.yaml';
+import openwrtTemplateYaml from '../config/OpenWrt.yaml';
 
 // 项目内置模板字典（忽略大小写，支持带或不带 .yaml 后缀）
 const BUILTIN_TEMPLATES = {
     'adblock': adblockTemplateYaml,
     'adblock.yaml': adblockTemplateYaml,
-    'openwrt': openwrtTemplateYaml,
-    'openwrt.yaml': openwrtTemplateYaml,
+    'OpenWrt': openwrtTemplateYaml,
+    'OpenWrt.yaml': openwrtTemplateYaml,
 };
 
 function getClashUdpValue(proxy, defaultEnabled = true) {
