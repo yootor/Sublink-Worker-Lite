@@ -7,3 +7,4 @@ node_modules/
 # 排除环境变量与系统临时文件
 .dev.vars
 .DS_Store
+.gitignore
