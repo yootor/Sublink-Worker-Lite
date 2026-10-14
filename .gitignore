@@ -1,0 +1,9 @@
+# 排除依赖包目录
+node_modules/
+
+# 排除 Wrangler 本地测试与打包缓存
+.wrangler/
+
+# 排除环境变量与系统临时文件
+.dev.vars
+.DS_Store
