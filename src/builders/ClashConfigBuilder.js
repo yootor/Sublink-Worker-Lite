@@ -1,44 +1,16 @@
 import yaml from 'js-yaml';
-import { CLASH_CONFIG, generateRules, generateClashRuleSets, getOutbounds, PREDEFINED_RULE_SETS, DIRECT_DEFAULT_RULES } from '../config/index.js';
 import { BaseConfigBuilder } from './BaseConfigBuilder.js';
-import { deepCopy, groupProxiesByCountry, buildCountryNameFilter } from '../utils.js';
 import { addProxyWithDedup } from './helpers/proxyHelpers.js';
-import { buildSelectorMembers, buildNodeSelectMembers, buildCustomRuleMembers, uniqueNames } from './helpers/groupBuilder.js';
-import { emitClashRules, sanitizeClashProxyGroups } from './helpers/clashConfigUtils.js';
-import { normalizeGroupName, findGroupIndexByName } from './helpers/groupNameUtils.js';
-import { InvalidConfigError } from '../services/errors.js';
+import adblockTemplateYaml from '../config/Adblock.yaml';
+import openwrtTemplateYaml from '../config/openwrt.yaml';
 
-/**
- * Check if the client supports MRS (Meta Rule Set) format
- * MRS is a binary format supported by Clash Meta/mihomo
- * Legacy Clash clients need YAML format instead
- * @param {string} userAgent - Client User-Agent string
- * @returns {boolean} - True if client supports MRS format
- */
-function supportsMrsFormat(userAgent) {
-    if (!userAgent) return true; // Default to mrs for unknown clients
-    const ua = userAgent.toLowerCase();
-    
-    // Clients confirmed to support MRS format (Clash Meta/mihomo based)
-    if (ua.includes('mihomo') || 
-        ua.includes('meta') ||           // clash.meta, clashx meta, meta-for-android, etc.
-        ua.includes('clash-verge') ||
-        ua.includes('stash') ||
-        ua.includes('verge')) {
-        return true;
-    }
-    
-    // Legacy clients that don't support MRS format
-    if (ua.includes('merlin') ||
-        ua.includes('clashforwindows') ||
-        ua.includes('clashforandroid') ||
-        ua.includes('clash/')) {         // 老版本Clash核心 (Clash/v1.x.x)
-        return false;
-    }
-    
-    // Default: use mrs for unknown clients (most modern clients support it)
-    return true;
-}
+// 项目内置模板字典（忽略大小写，支持带或不带 .yaml 后缀）
+const BUILTIN_TEMPLATES = {
+    'adblock': adblockTemplateYaml,
+    'adblock.yaml': adblockTemplateYaml,
+    'openwrt': openwrtTemplateYaml,
+    'openwrt.yaml': openwrtTemplateYaml,
+};
 
 function getClashUdpValue(proxy, defaultEnabled = true) {
     if (typeof proxy?.udp !== 'undefined') {
@@ -47,85 +19,24 @@ function getClashUdpValue(proxy, defaultEnabled = true) {
     return defaultEnabled;
 }
 
+/**
+ * 将包含 (?i) 的正则安全转换为 JS RegExp
+ */
+function createSafeRegExp(pattern) {
+    const cleanPattern = String(pattern).replace(/^\(\?i\)/i, '');
+    return new RegExp(cleanPattern, 'i');
+}
+
 export class ClashConfigBuilder extends BaseConfigBuilder {
-    constructor(inputString, selectedRules, customRules, baseConfig, lang, userAgent, groupByCountry = false, enableClashUI = false, externalController, externalUiDownloadUrl, includeAutoSelect = true) {
-        if (!baseConfig) {
-            baseConfig = CLASH_CONFIG;
-        }
-        super(inputString, baseConfig, lang, userAgent, groupByCountry, includeAutoSelect);
-        this.selectedRules = selectedRules;
-        this.customRules = customRules;
-        this.countryGroupNames = [];
-        this.manualGroupName = null;
-        this.enableClashUI = enableClashUI;
-        this.externalController = externalController;
-        this.externalUiDownloadUrl = externalUiDownloadUrl;
-    }
-
-    /**
-     * Check if subscription format is compatible for use as Clash proxy-provider
-     * @param {'clash'|'singbox'|'unknown'} format - Detected subscription format
-     * @returns {boolean} - True if format is Clash YAML
-     */
-    isCompatibleProviderFormat(format) {
-        return format === 'clash';
-    }
-
-    /**
-     * Generate proxy-providers configuration from collected URLs
-     * @returns {object} - proxy-providers object
-     */
-    generateProxyProviders() {
-        const providers = {};
-        const existingProviders = this.getExistingProviderNames();
-        this.getAutoProviderDescriptors(existingProviders).forEach(({ name, url }) => {
-            providers[name] = {
-                type: 'http',
-                url: url,
-                path: `./proxy_providers/${name}.yaml`,
-                interval: 3600,
-                'health-check': {
-                    enable: true,
-                    url: 'https://cp.cloudflare.com/generate_204',
-                    interval: 300,
-                    timeout: 5000,
-                    lazy: true
-                }
-            };
-        });
-        return providers;
-    }
-
-    /**
-     * Get list of provider names
-     * @returns {string[]} - Array of provider names
-     */
-    getProviderNames() {
-        return this.getAutoProviderDescriptors(this.getExistingProviderNames()).map(provider => provider.name);
-    }
-
-    getExistingProviderNames() {
-        return this.config?.['proxy-providers'] && typeof this.config['proxy-providers'] === 'object'
-            ? Object.keys(this.config['proxy-providers'])
-            : [];
-    }
-
-    /**
-     * Get all provider names (user-defined + auto-generated)
-     * @returns {string[]} - Array of provider names
-     */
-    getAllProviderNames() {
-        const existingProviders = this.getExistingProviderNames();
-        const autoProviders = this.getProviderNames();
-        return [...new Set([...existingProviders, ...autoProviders])];
+    constructor(inputString, configParam, excludeParam, env, userAgent) {
+        super(inputString, { proxies: [] }, userAgent);
+        this.configParam = configParam;
+        this.excludeParam = excludeParam;
+        this.env = env;
     }
 
     getProxies() {
         return this.config.proxies || [];
-    }
-
-    getProxyName(proxy) {
-        return proxy.name;
     }
 
     convertProxy(proxy) {
@@ -156,10 +67,7 @@ export class ClashConfigBuilder extends BaseConfigBuilder {
                     'skip-cert-verify': !!proxy.tls?.insecure,
                     network: proxy.transport?.type || proxy.network || 'tcp',
                     'ws-opts': proxy.transport?.type === 'ws'
-                        ? {
-                            path: proxy.transport.path,
-                            headers: proxy.transport.headers
-                        }
+                        ? { path: proxy.transport.path, headers: proxy.transport.headers }
                         : undefined,
                     'http-opts': proxy.transport?.type === 'http'
                         ? (() => {
@@ -174,15 +82,10 @@ export class ClashConfigBuilder extends BaseConfigBuilder {
                         })()
                         : undefined,
                     'grpc-opts': proxy.transport?.type === 'grpc'
-                        ? {
-                            'grpc-service-name': proxy.transport.service_name
-                        }
+                        ? { 'grpc-service-name': proxy.transport.service_name }
                         : undefined,
                     'h2-opts': proxy.transport?.type === 'h2'
-                        ? {
-                            path: proxy.transport.path,
-                            host: proxy.transport.host
-                        }
+                        ? { path: proxy.transport.path, host: proxy.transport.host }
                         : undefined,
                     udp: getClashUdpValue(proxy)
                 };
@@ -198,23 +101,21 @@ export class ClashConfigBuilder extends BaseConfigBuilder {
                     'client-fingerprint': proxy.tls?.utls?.fingerprint,
                     servername: proxy.tls?.server_name || '',
                     network: proxy.transport?.type || 'tcp',
-                    'ws-opts': proxy.transport?.type === 'ws' ? {
-                        path: proxy.transport.path,
-                        headers: proxy.transport.headers
-                    } : undefined,
-                    'reality-opts': proxy.tls?.reality?.enabled ? {
-                        'public-key': proxy.tls.reality.public_key,
-                        'short-id': proxy.tls.reality.short_id,
-                    } : undefined,
-                    'grpc-opts': proxy.transport?.type === 'grpc' ? {
-                        'grpc-service-name': proxy.transport.service_name,
-                    } : undefined,
+                    'ws-opts': proxy.transport?.type === 'ws'
+                        ? { path: proxy.transport.path, headers: proxy.transport.headers }
+                        : undefined,
+                    'reality-opts': proxy.tls?.reality?.enabled
+                        ? { 'public-key': proxy.tls.reality.public_key, 'short-id': proxy.tls.reality.short_id }
+                        : undefined,
+                    'grpc-opts': proxy.transport?.type === 'grpc'
+                        ? { 'grpc-service-name': proxy.transport.service_name }
+                        : undefined,
                     tfo: proxy.tcp_fast_open,
                     'skip-cert-verify': !!proxy.tls?.insecure,
                     udp: getClashUdpValue(proxy),
                     ...(proxy.alpn ? { alpn: proxy.alpn } : {}),
                     ...(proxy.packet_encoding ? { 'packet-encoding': proxy.packet_encoding } : {}),
-                    'flow': proxy.flow ?? undefined,
+                    flow: proxy.flow ?? undefined,
                 };
             case 'hysteria2':
                 return {
@@ -248,21 +149,19 @@ export class ClashConfigBuilder extends BaseConfigBuilder {
                     'client-fingerprint': proxy.tls?.utls?.fingerprint,
                     sni: proxy.tls?.server_name || '',
                     network: proxy.transport?.type || 'tcp',
-                    'ws-opts': proxy.transport?.type === 'ws' ? {
-                        path: proxy.transport.path,
-                        headers: proxy.transport.headers
-                    } : undefined,
-                    'reality-opts': proxy.tls?.reality?.enabled ? {
-                        'public-key': proxy.tls.reality.public_key,
-                        'short-id': proxy.tls.reality.short_id,
-                    } : undefined,
-                    'grpc-opts': proxy.transport?.type === 'grpc' ? {
-                        'grpc-service-name': proxy.transport.service_name,
-                    } : undefined,
+                    'ws-opts': proxy.transport?.type === 'ws'
+                        ? { path: proxy.transport.path, headers: proxy.transport.headers }
+                        : undefined,
+                    'reality-opts': proxy.tls?.reality?.enabled
+                        ? { 'public-key': proxy.tls.reality.public_key, 'short-id': proxy.tls.reality.short_id }
+                        : undefined,
+                    'grpc-opts': proxy.transport?.type === 'grpc'
+                        ? { 'grpc-service-name': proxy.transport.service_name }
+                        : undefined,
                     tfo: proxy.tcp_fast_open,
                     'skip-cert-verify': !!proxy.tls?.insecure,
                     ...(proxy.alpn ? { alpn: proxy.alpn } : {}),
-                    'flow': proxy.flow ?? undefined,
+                    flow: proxy.flow ?? undefined,
                     udp: getClashUdpValue(proxy),
                 };
             case 'tuic':
@@ -277,7 +176,7 @@ export class ClashConfigBuilder extends BaseConfigBuilder {
                     'skip-cert-verify': !!proxy.tls?.insecure,
                     ...(proxy.disable_sni !== undefined ? { 'disable-sni': proxy.disable_sni } : {}),
                     ...(proxy.tls?.alpn ? { alpn: proxy.tls.alpn } : {}),
-                    'sni': proxy.tls?.server_name,
+                    sni: proxy.tls?.server_name,
                     'udp-relay-mode': proxy.udp_relay_mode || 'native',
                     ...(proxy.zero_rtt !== undefined ? { 'zero-rtt': proxy.zero_rtt } : {}),
                     ...(proxy.reduce_rtt !== undefined ? { 'reduce-rtt': proxy.reduce_rtt } : {}),
@@ -304,7 +203,7 @@ export class ClashConfigBuilder extends BaseConfigBuilder {
                 };
             }
             default:
-                return proxy; // Return as-is if no specific conversion is defined
+                return proxy;
         }
     }
 
@@ -323,410 +222,114 @@ export class ClashConfigBuilder extends BaseConfigBuilder {
         });
     }
 
-    hasProxyGroup(name) {
-        const target = normalizeGroupName(name);
-        return (this.config['proxy-groups'] || []).some(group => group && normalizeGroupName(group.name) === target);
-    }
-
-    hasSelectableSources(proxyList = []) {
-        return uniqueNames(proxyList).length > 0 || this.getAllProviderNames().length > 0;
-    }
-
-    shouldIncludeAutoSelectGroup(proxyList = []) {
-        return this.includeAutoSelect && this.hasSelectableSources(proxyList);
-    }
-
-    addAutoSelectGroup(proxyList) {
-        if (!this.includeAutoSelect) return;
-        this.config['proxy-groups'] = this.config['proxy-groups'] || [];
-        const autoName = this.t('outboundNames.Auto Select');
-        if (this.hasProxyGroup(autoName)) return;
-        const providerNames = this.getAllProviderNames();
-        if (uniqueNames(proxyList).length === 0 && providerNames.length === 0) return;
-
-        const group = {
-            name: autoName,
-            type: 'url-test',
-            proxies: deepCopy(uniqueNames(proxyList)),
-            url: 'https://cp.cloudflare.com/generate_204',
-            interval: 300,
-            lazy: false
-        };
-
-        if (providerNames.length > 0) {
-            group.use = providerNames;
-        }
-
-        this.config['proxy-groups'].push(group);
-    }
-
-    addNodeSelectGroup(proxyList) {
-        this.config['proxy-groups'] = this.config['proxy-groups'] || [];
-        const nodeName = this.t('outboundNames.Node Select');
-        if (this.hasProxyGroup(nodeName)) return;
-        const list = buildNodeSelectMembers({
-            proxyList,
-            translator: this.t,
-            groupByCountry: this.groupByCountry,
-            manualGroupName: this.manualGroupName,
-            countryGroupNames: this.countryGroupNames,
-            includeAutoSelect: this.shouldIncludeAutoSelectGroup(proxyList)
-        });
-
-        const group = {
-            type: "select",
-            name: nodeName,
-            proxies: list
-        };
-
-        // Add 'use' field if we have proxy-providers
-        const providerNames = this.getAllProviderNames();
-        if (providerNames.length > 0) {
-            group.use = providerNames;
-        }
-
-        this.config['proxy-groups'].unshift(group);
-    }
-
-    buildSelectGroupMembers(proxyList = []) {
-        return buildSelectorMembers({
-            proxyList,
-            translator: this.t,
-            groupByCountry: this.groupByCountry,
-            manualGroupName: this.manualGroupName,
-            countryGroupNames: this.countryGroupNames,
-            includeAutoSelect: this.shouldIncludeAutoSelectGroup(proxyList)
-        });
-    }
-
-    addOutboundGroups(outbounds, proxyList) {
-        outbounds.forEach(outbound => {
-            if (outbound !== this.t('outboundNames.Node Select')) {
-                const name = this.t(`outboundNames.${outbound}`);
-                if (!this.hasProxyGroup(name)) {
-                    let proxies = this.buildSelectGroupMembers(proxyList);
-                    // For rules that should default to DIRECT, move DIRECT to the front
-                    if (DIRECT_DEFAULT_RULES.has(outbound)) {
-                        proxies = ['DIRECT', ...proxies.filter(p => p !== 'DIRECT')];
-                    }
-                    const group = {
-                        type: "select",
-                        name,
-                        proxies
-                    };
-                    // Add 'use' field if we have proxy-providers
-                    const providerNames = this.getAllProviderNames();
-                    if (providerNames.length > 0) {
-                        group.use = providerNames;
-                    }
-                    this.config['proxy-groups'].push(group);
-                }
-            }
-        });
-    }
-
-    addCustomRuleGroups(proxyList) {
-        if (Array.isArray(this.customRules)) {
-            this.customRules.forEach(rule => {
-                const name = this.t(`outboundNames.${rule.name}`);
-                if (!this.hasProxyGroup(name)) {
-                    const proxies = buildCustomRuleMembers({
-                        proxyList,
-                        translator: this.t,
-                        manualGroupName: this.manualGroupName,
-                        includeAutoSelect: this.shouldIncludeAutoSelectGroup(proxyList)
-                    });
-                    const group = {
-                        type: "select",
-                        name,
-                        proxies
-                    };
-                    // Add 'use' field if we have proxy-providers
-                    const providerNames = this.getAllProviderNames();
-                    if (providerNames.length > 0) {
-                        group.use = providerNames;
-                    }
-                    this.config['proxy-groups'].push(group);
-                }
-            });
-        }
-    }
-
-    addFallBackGroup(proxyList) {
-        const name = this.t('outboundNames.Fall Back');
-        if (this.hasProxyGroup(name)) return;
-        const proxies = this.buildSelectGroupMembers(proxyList);
-        const group = {
-            type: "select",
-            name,
-            proxies
-        };
-        // Add 'use' field if we have proxy-providers
-        const providerNames = this.getAllProviderNames();
-        if (providerNames.length > 0) {
-            group.use = providerNames;
-        }
-        this.config['proxy-groups'].push(group);
-    }
-
-    addCountryGroups() {
-        const proxies = this.getProxies();
-        const countryGroups = groupProxiesByCountry(proxies, {
-            getName: proxy => this.getProxyName(proxy)
-        });
-
-        // Provider mode leaves no inline proxies, but mihomo can filter provider
-        // members per group (`use` + `filter`), so enumerate countries from the
-        // names collected at fetch time and reference the providers instead.
-        const providerNames = this.getAllProviderNames();
-        if (providerNames.length > 0 && this.providerNodeNames.length > 0) {
-            const providerCountryGroups = groupProxiesByCountry(this.providerNodeNames, {
-                getName: name => name
-            });
-            Object.keys(providerCountryGroups).forEach(country => {
-                if (!countryGroups[country]) {
-                    countryGroups[country] = { ...providerCountryGroups[country], proxies: [] };
-                }
-            });
-        }
-
-        const existingNames = new Set((this.config['proxy-groups'] || []).map(g => normalizeGroupName(g?.name)).filter(Boolean));
-
-        const manualProxyNames = proxies.map(p => p?.name).filter(Boolean);
-        const manualGroupName = manualProxyNames.length > 0 ? this.t('outboundNames.Manual Switch') : null;
-        if (manualGroupName) {
-            const manualNorm = normalizeGroupName(manualGroupName);
-            if (!existingNames.has(manualNorm)) {
-                const group = {
-                    name: manualGroupName,
-                    type: 'select',
-                    proxies: manualProxyNames
-                };
-                // Add 'use' field if we have proxy-providers
-                const providerNames = this.getAllProviderNames();
-                if (providerNames.length > 0) {
-                    group.use = providerNames;
-                }
-                this.config['proxy-groups'].push(group);
-                existingNames.add(manualNorm);
-            }
-        }
-
-        const countries = Object.keys(countryGroups).sort((a, b) => a.localeCompare(b));
-        const countryGroupNames = [];
-
-        countries.forEach(country => {
-            const { emoji, name, aliases, proxies } = countryGroups[country];
-            const groupName = `${emoji} ${name}`;
-            const norm = normalizeGroupName(groupName);
-            if (!existingNames.has(norm)) {
-                const group = {
-                    name: groupName,
-                    type: 'url-test',
-                    proxies: proxies,
-                    url: 'https://cp.cloudflare.com/generate_204',
-                    interval: 300,
-                    lazy: false
-                };
-                // Add 'use' field if we have proxy-providers, narrowed to this
-                // country so provider members don't leak into every group
-                if (providerNames.length > 0) {
-                    group.use = providerNames;
-                    const filter = buildCountryNameFilter({ emoji, aliases });
-                    if (filter) {
-                        group.filter = filter;
-                    }
-                }
-                this.config['proxy-groups'].push(group);
-                existingNames.add(norm);
-            }
-            countryGroupNames.push(groupName);
-        });
-
-        const nodeSelectGroup = this.config['proxy-groups'].find(g => g && g.name === this.t('outboundNames.Node Select'));
-        if (nodeSelectGroup && Array.isArray(nodeSelectGroup.proxies)) {
-            const rebuilt = buildNodeSelectMembers({
-                proxyList: [],
-                translator: this.t,
-                groupByCountry: true,
-                manualGroupName,
-                countryGroupNames,
-                includeAutoSelect: this.shouldIncludeAutoSelectGroup(this.getProxyList())
-            });
-            nodeSelectGroup.proxies = rebuilt;
-        }
-        this.countryGroupNames = countryGroupNames;
-        this.manualGroupName = manualGroupName;
-    }
-
     /**
-     * Merge user-defined proxy groups with system-generated ones
-     * Handles same-name groups by merging proxies/use fields and preserving user settings
-     * @param {Array} userGroups - User-defined proxy groups from input config
+     * 获取模板内容：支持 ?config=远程链接、?config=KV键名、默认内置 Adblock.yaml
      */
-    mergeUserProxyGroups(userGroups) {
-        if (!Array.isArray(userGroups)) return;
-
-        const proxyList = this.getProxyList();
-        const allProviderNames = new Set(this.getAllProviderNames());
-
-        // Build valid reference set (proxies, groups, special names)
-        const groupNames = new Set(
-            (this.config['proxy-groups'] || [])
-                .map(g => normalizeGroupName(g?.name))
-                .filter(Boolean)
-        );
-        const validRefs = new Set(['DIRECT', 'REJECT']);
-        proxyList.forEach(n => validRefs.add(n));
-        groupNames.forEach(n => validRefs.add(n));
-
-        userGroups.forEach(userGroup => {
-            if (!userGroup?.name) return;
-
-            const existingIndex = findGroupIndexByName(
-                this.config['proxy-groups'],
-                userGroup.name
-            );
-
-            if (existingIndex >= 0) {
-                // Merge with existing system group
-                const existing = this.config['proxy-groups'][existingIndex];
-
-                // Merge 'use' field (provider references)
-                if (Array.isArray(userGroup.use) && userGroup.use.length > 0) {
-                    const validUserProviders = userGroup.use.filter(p => allProviderNames.has(p));
-                    existing.use = [...new Set([
-                        ...(existing.use || []),
-                        ...validUserProviders
-                    ])];
-                }
-
-                // Merge 'proxies' field - validate references first
-                if (Array.isArray(userGroup.proxies)) {
-                    const validUserProxies = userGroup.proxies.filter(p => validRefs.has(p));
-                    existing.proxies = [...new Set([
-                        ...(existing.proxies || []),
-                        ...validUserProxies
-                    ])];
-                }
-
-                // Preserve user's custom settings (url, interval)
-                if (userGroup.url) existing.url = userGroup.url;
-                if (typeof userGroup.interval === 'number') existing.interval = userGroup.interval;
-                if (typeof userGroup.lazy === 'boolean') existing.lazy = userGroup.lazy;
-            } else {
-                // New user-defined group - validate and add
-                const newGroup = { ...userGroup };
-
-                // Validate proxies references
-                if (Array.isArray(newGroup.proxies)) {
-                    newGroup.proxies = newGroup.proxies.filter(p => validRefs.has(p));
-                }
-
-                // Validate use (provider) references
-                if (Array.isArray(newGroup.use)) {
-                    newGroup.use = newGroup.use.filter(p => allProviderNames.has(p));
-                }
-
-                if ((newGroup.proxies?.length > 0) || (newGroup.use?.length > 0) || newGroup.type) {
-                    this.config['proxy-groups'].push(newGroup);
-                }
-            }
-        });
-    }
-
     /**
-     * Reject invalid proxy groups before final output.
-     * Why: empty groups make Clash reject the whole config, so we should fail fast
-     * instead of masking the upstream merge/parsing problem.
+     * 获取模板内容：
+     * 1. 不传参数 -> 默认使用内置 Adblock.yaml
+     * 2. ?config=openwrt 或 adblock -> 使用对应内置模板
+     * 3. ?config=https://... -> 拉取远程模板
+     * 4. ?config=kv_key -> 读取 Cloudflare KV
      */
-    validateProxyGroups() {
-        (this.config['proxy-groups'] || []).forEach(group => {
-            const requiresMembers = group?.type === 'url-test' || group?.type === 'fallback';
-            if (!requiresMembers) {
-                return;
-            }
-
-            const hasProxyRefs = Array.isArray(group.proxies) && group.proxies.length > 0;
-            const hasProviderRefs = Array.isArray(group.use) && group.use.length > 0;
-            if (hasProxyRefs || hasProviderRefs) {
-                return;
-            }
-
-            const groupName = group?.name || '(unnamed group)';
-            throw new InvalidConfigError(
-                `Invalid proxy group "${groupName}": type "${group.type}" requires at least one proxy or provider reference`
-            );
-        });
-    }
-
-    // 生成规则
-    generateRules() {
-        return generateRules(this.selectedRules, this.customRules);
-    }
-
-    async formatConfig() {
-        const proxies = this.getProxies();
-        const proxyNames = proxies.map(p => p.name);
-        
-        // 1. 获取请求 URL
-        const requestUrl = new URL(this.inputString.startsWith('http') ? this.inputString : `http://localhost${this.inputString}`);
-        const userConfigUrl = requestUrl.searchParams.get("config");
-
-        // ==========================================
-        // 2. 核心：模板链接判定逻辑
-        // ==========================================
-        let targetConfigUrl = "";
-
-        if (userConfigUrl) {
-            // 如果链接中带有 &config=，解码并直接使用该指定模板
-            targetConfigUrl = decodeURIComponent(userConfigUrl);
-        } else {
-            // 如果什么都不传，默认使用你的主力私有模板 (请替换为你真实的 Raw 链接)
-            targetConfigUrl = "https://raw.githubusercontent.com/yootor/Sublink-Worker-Lite/main/src/config/Adblock.yaml"; 
+    async loadTemplateString() {
+        // 1. 未传 config 参数时，默认使用 Adblock.yaml
+        if (!this.configParam) {
+            return adblockTemplateYaml;
         }
 
-        // 3. 远端拉取 YAML 模板
-        let templateString = "";
-        try {
-            const resp = await fetch(targetConfigUrl);
+        const target = decodeURIComponent(this.configParam).trim();
+        const lowerKey = target.toLowerCase();
+
+        // 2. 优先匹配项目内置的本地模板
+        if (BUILTIN_TEMPLATES[lowerKey]) {
+            return BUILTIN_TEMPLATES[lowerKey];
+        }
+
+        // 3. 如果是 http/https 链接，从远程拉取
+        if (target.startsWith('http://') || target.startsWith('https://')) {
+            const resp = await fetch(target);
             if (!resp.ok) {
-                throw new Error(`HTTP 状态异常: ${resp.status}`);
+                throw new Error(`无法拉取远程模板 (${resp.status}): ${target}`);
             }
-            templateString = await resp.text();
-        } catch (err) {
-            throw new Error(`无法获取远程模板: ${targetConfigUrl}。原因: ${err.message}`);
+            return await resp.text();
         }
 
-        // 4. 解析 YAML
-        let finalConfig = yaml.load(templateString);
-        finalConfig.proxies = proxies;
+        throw new Error(`未找到指定的配置模板: ${target}（内置可用模板: adblock）`);
+    }
+    
+    async formatConfig() {
+            // 1. 定义全局黑名单：默认剔除版本号、流量、到期时间、官网公告等假节点
+            const GLOBAL_EXCLUDE_REGEX = /禁|业务|更新|剩余流量|距离下次重置|套餐到期|到期时间|官网|群组|公告|网址/i;
+    
+            // 2. 解析 URL 传入的 &exclude= 动态排除正则
+            let userExcludeRegex = null;
+            if (this.excludeParam && this.excludeParam.trim() !== '') {
+                try {
+                    userExcludeRegex = createSafeRegExp(this.excludeParam.trim());
+                } catch (e) {
+                    throw new Error(`exclude 参数正则表达式无效 "${this.excludeParam}": ${e.message}`);
+                }
+            }
+    
+            // 3. 过滤节点（同时满足不命中内置黑名单、也不命中 URL exclude 参数）
+            const proxies = this.getProxies().filter(p => {
+                if (GLOBAL_EXCLUDE_REGEX.test(p.name)) return false;
+                if (userExcludeRegex && userExcludeRegex.test(p.name)) return false;
+                return true;
+            });
+    
+            // 4.同步回写过滤后的节点列表，确保外层统计准确
+            this.config.proxies = proxies;
+            const proxyNames = proxies.map(p => p.name);
+    
+            // 5. 加载模板并填入有效节点
+            const templateString = await this.loadTemplateString();
+            const finalConfig = yaml.load(templateString);
+            finalConfig.proxies = proxies;
 
-        // 5. 遍历模板策略组，读取 regex 并自动填入节点
-        if (finalConfig["proxy-groups"]) {
-            finalConfig["proxy-groups"].forEach(group => {
-                if (!group.proxies) group.proxies = [];
+        // 遍历策略组，在后端直接完成节点筛选、排除并写入 proxies 列表
+        if (Array.isArray(finalConfig['proxy-groups'])) {
+            finalConfig['proxy-groups'].forEach(group => {
+                if (!Array.isArray(group.proxies)) {
+                    group.proxies = [];
+                }
 
-                if (group.regex) {
+                // 只要策略组配置了 include-all、filter 或 regex，就在后端展开节点
+                const filterPattern = group.filter || group.regex || (group['include-all'] ? '.*' : null);
+
+                if (filterPattern) {
                     try {
-                        const regex = new RegExp(group.regex, 'i');
-                        const matchedNodes = proxyNames.filter(name => regex.test(name));
-                        // 将匹配到的节点加入策略组，并去重
+                        const includeRegex = createSafeRegExp(filterPattern);
+                        let matchedNodes = proxyNames.filter(name => includeRegex.test(name));
+
+                        // 如果策略组配置了 exclude-filter（排除特定节点），进一步过滤
+                        if (group['exclude-filter']) {
+                            const excludeRegex = createSafeRegExp(group['exclude-filter']);
+                            matchedNodes = matchedNodes.filter(name => !excludeRegex.test(name));
+                        }
+
+                        // 将筛选出的节点名写入策略组并去重
                         group.proxies = [...new Set([...group.proxies, ...matchedNodes])];
                     } catch (e) {
-                        console.error(`无效的正则: ${group.regex}`);
+                        console.error(`策略组 ${group.name} 正则解析失败:`, e);
                     }
-                    // 必须删掉 regex 字段，否则 Clash 内核会报错
+
+                    // 节点已实打实写入 proxies，清理掉模板中的动态筛选字段
+                    delete group['include-all'];
+                    delete group.filter;
                     delete group.regex;
+                    delete group['exclude-filter'];
                 }
 
-                // 防空兜底，防止策略组无节点崩溃
+                // 防空兜底：如果某地区（如美国）没有任何匹配节点，填入 DIRECT 防止 Clash 报错
                 if (group.proxies.length === 0) {
-                    group.proxies.push("DIRECT");
+                    group.proxies.push('DIRECT');
                 }
             });
         }
 
-        return yaml.dump(finalConfig);
+        return yaml.dump(finalConfig, { lineWidth: -1, noRefs: true });
     }
+    
 }

@@ -1,0 +1,217 @@
+port: 890
+socks-port: 891
+allow-lan: true
+mode: Rule
+log-level: info
+external-controller: '127.0.0.1:999'
+external-ui-url: https://github.com/Zephyruso/zashboard/releases/latest/download/dist.zip
+external-ui: ui
+external-ui-name: zashboard
+
+dns:
+  enable: true
+  prefer-h3: true
+  ipv6: false
+  nameserver:
+    - https://223.5.5.5/dns-query
+    - https://120.53.53.53/dns-query
+  proxy-server-nameserver:
+    - https://223.5.5.5/dns-query
+    - https://120.53.53.53/dns-query
+
+sniffer:
+  enable: true
+  parse-pure-ip: true
+  force-dns-mapping: true
+  override-destination: false
+  sniff:
+    HTTP:
+      ports: [80, 443]
+      override-destination: false
+    TLS:
+      ports: [443]
+    QUIC:
+      ports: [443]
+  skip-domain:
+    - +.push.apple.com
+
+# 策略组 (利用 Mihomo 原生 filter 本地筛选，彻底避免后端转换遗漏)
+proxy-groups:
+  - name: 🚀 Select
+    type: select
+    include-all: true
+    filter: "(?i)(.*)"
+    proxies: 
+      - "🎊 🇭🇰 HongKong"
+      - "☘️ 🇸🇬 Singapore"
+      - "🌎 🇺🇸 USA"
+      - "DIRECT"
+
+  - name: 🤖 GG
+    type: select
+    include-all: true
+    filter: "(?i)(Singapore|新加坡|SG|狮|🇸🇬|美|US|🇺🇸|台|新北|彰化|Taiwan|🇨🇳|TW)"
+    proxies: 
+      - "🚀 Select"
+      - "☘️ 🇸🇬 Singapore"
+      - "🌎 🇺🇸 USA"
+
+  - name: 📺 Media
+    type: select
+    include-all: true # 自动包含所有节点供手动选择
+    filter: "(?i)(.*)"
+    proxies: 
+      - "🚀 Select"
+      - "🎊 🇭🇰 HongKong"
+      - "☘️ 🇸🇬 Singapore"
+      - "🌎 🇺🇸 USA"
+
+  - name: ✨ Microsoft
+    type: select
+    include-all: true
+    filter: "(?i)(Singapore|新加坡|SG|狮|🇸🇬|美|US|🇺🇸|台|新北|彰化|Taiwan|🇨🇳|TW|香港|HK|🇭🇰|Hong Kong|HongKong)"
+    proxies: 
+      - "🚀 Select"
+      - "🎊 🇭🇰 HongKong"
+      - "☘️ 🇸🇬 Singapore"
+      - "🌎 🇺🇸 USA"
+      - "DIRECT"
+
+  - name: 🍎 Apple
+    type: select
+    proxies: 
+      - "DIRECT"
+      - "🚀 Select"
+      - "🎊 🇭🇰 HongKong"
+      - "🌎 🇺🇸 USA"
+
+  - name: 🎯 Direct
+    type: select
+    proxies: 
+      - "DIRECT"
+      - "🚀 Select"
+
+  #- name: 🍃 AdBlock
+  #  type: select
+  #  proxies: 
+  #    - "REJECT"
+  #    - "DIRECT"
+
+  - name: 🐳 Final
+    type: select
+    include-all: true
+    proxies: 
+      - "🚀 Select"
+      - "DIRECT"
+      - "🎊 🇭🇰 HongKong"
+      - "☘️ 🇸🇬 Singapore"
+      - "🌎 🇺🇸 USA"
+
+  # --- 地区测速组 (原生正则过滤) ---
+  - name: 🎊 🇭🇰 HongKong
+    type: url-test
+    include-all: true
+    filter: "(?i)(港|HK|Hong Kong|HongKong)"
+    url: "https://cp.cloudflare.com/generate_204"
+    interval: 500
+    tolerance: 50
+
+  - name: ☘️ 🇸🇬 Singapore
+    type: url-test
+    include-all: true
+    filter: "(?i)(新加坡|SG|狮|🇸🇬|Singapore)"
+    url: "https://cp.cloudflare.com/generate_204"
+    interval: 500
+    tolerance: 50
+
+  - name: 🌎 🇺🇸 USA
+    type: url-test
+    include-all: true
+    filter: "(?i)(美国|🇺🇸|美|波特兰|达拉斯|俄勒冈|凤凰城|费利蒙|硅谷|拉斯维加斯|洛杉矶|圣何塞|圣克拉拉|西雅图|芝加哥|US|United States)"
+    url: "https://cp.cloudflare.com/generate_204"
+    interval: 500
+    tolerance: 50
+
+# 规则集与路由
+rule-providers:
+  MyCN:
+    type: http
+    behavior: classical
+    format: text
+    url: "https://raw.githubusercontent.com/yootor/ACL4SSR/master/Clash/Rules/MyCN.list"
+    interval: 604800
+  MyProxy:
+    type: http
+    behavior: classical
+    format: text
+    url: "https://raw.githubusercontent.com/yootor/ACL4SSR/master/Clash/Rules/MyProxy.list"
+    interval: 604800
+  #AdBlock:
+  #  type: http
+  #  behavior: domain
+  #  format: mrs
+  #  url: "https://raw.githubusercontent.com/yootor/ACL4SSR/master/Clash/Mrs/AdBlock.mrs"
+  #  interval: 604800
+  AI:
+    type: http
+    behavior: classical
+    format: text
+    url: "https://raw.githubusercontent.com/yootor/ACL4SSR/master/Clash/Rules/AI.list"
+    interval: 604800
+  Google:
+    type: http
+    behavior: classical
+    format: text
+    url: "https://raw.githubusercontent.com/yootor/ACL4SSR/master/Clash/Rules/Google.list"
+    interval: 604800
+  Media:
+    type: http
+    behavior: classical
+    format: text
+    url: "https://raw.githubusercontent.com/yootor/ACL4SSR/master/Clash/Rules/ProxyMedia.list"
+    interval: 604800
+  Microsoft:
+    type: http
+    behavior: classical
+    format: text
+    url: "https://raw.githubusercontent.com/yootor/ACL4SSR/master/Clash/Rules/Microsoft.list"
+    interval: 604800
+  ProxyGFW:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://raw.githubusercontent.com/yootor/ACL4SSR/master/Clash/Mrs/ProxyGFW.mrs"
+    interval: 604800
+  ProxyDNS:
+    type: http
+    behavior: classical
+    format: text
+    url: "https://raw.githubusercontent.com/yootor/ACL4SSR/master/Clash/Rules/ProxyDNS.list"
+    interval: 604800
+  Apple:
+    type: http
+    behavior: classical
+    format: text
+    url: "https://raw.githubusercontent.com/yootor/ACL4SSR/master/Clash/Rules/Apple.list"
+    interval: 604800
+  ChinaDomain:
+    type: http
+    behavior: classical
+    format: text
+    url: "https://raw.githubusercontent.com/yootor/ACL4SSR/master/Clash/Rules/ChinaDomain.list"
+    interval: 604800
+
+rules:
+  - RULE-SET,MyCN,🎯 Direct
+  - RULE-SET,MyProxy,🚀 Select
+  #- RULE-SET,AdBlock,🍃 AdBlock
+  - RULE-SET,AI,🤖 GG
+  - RULE-SET,Google,🤖 GG
+  - RULE-SET,Media,📺 Media
+  - RULE-SET,Microsoft,✨ Microsoft
+  - RULE-SET,ProxyGFW,🚀 Select
+  - RULE-SET,ProxyDNS,🎊 🇭🇰 HongKong
+  - RULE-SET,Apple,🍎 Apple
+  - RULE-SET,ChinaDomain,🎯 Direct
+  - GEOIP,CN,🎯 Direct
+  - MATCH,🐳 Final
