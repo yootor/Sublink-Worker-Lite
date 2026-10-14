@@ -1,50 +1,51 @@
-<div align="center">
-  <img src="public/favicon.png" alt="Sublink Worker" width="120" height="120"/>
 
-  <h1><b>Sublink Worker</b></h1>
+  <h1><b>Sublink Worker Lite</b></h1>
   <h5><i>One Worker, All Subscriptions</i></h5>
 
-  <p><b>A lightweight subscription converter and manager for proxy protocols, deployable on Cloudflare Workers, Vercel, Node.js, or Docker.</b></p>
+Based on [sublink-Worker](https://github.com/sublink-network/sublink), this is a minimalist, high-performance subscription converter and node processing tool running on Cloudflare Workers. It strips away bulky web UIs and redundant components, focusing entirely on **"protocol parsing + remote template merging + intelligent node filtering"**, with full support for modern proxy protocols like anytls (including `sni` retention).
 
-  <a href="https://trendshift.io/repositories/12291" target="_blank">
-    <img src="https://trendshift.io/api/badge/repositories/12291" alt="7Sageer%2Fsublink-worker | Trendshift" width="250" height="55"/>
-  </a>
+---
 
-  <br>
+## 🚀 Usage Guide
 
-<p style="display: flex; align-items: center; gap: 10px;">
-  <a href="https://deploy.workers.cloudflare.com/?url=https://github.com/7Sageer/sublink-worker">
-    <img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare Workers" style="height: 32px;"/>
-  </a>
-  <a href="https://vercel.com/new/clone?repository-url=https://github.com/7Sageer/sublink-worker&env=KV_REST_API_URL,KV_REST_API_TOKEN&envDescription=Vercel%20KV%20credentials%20for%20data%20storage&envLink=https://vercel.com/docs/storage/vercel-kv">
-    <img src="https://vercel.com/button" alt="Deploy to Vercel" style="height: 32px;"/>
-  </a>
-</p>
+Once deployed to your Cloudflare Worker, you can dynamically control the subscription conversion via URL parameters.
 
-  <h3>📚 Documentation</h3>
-  <p>
-    <a href="https://app.sublink.works"><b>⚡ Live Demo</b></a> ·
-    <a href="https://sublink.works/en/"><b>Documentation</b></a> 
-    <a href="https://sublink.works"><b>中文文档</b></a>·
-  </p>
-  <p>
-    <a href="https://sublink.works/guide/quick-start/">Quick Start</a> ·
-    <a href="https://sublink.works/api/">API Reference</a> ·
-    <a href="https://sublink.works/guide/faq/">FAQ</a>
-  </p>
-</div>
+| Feature / Scenario | Parameter Description | Request URL Example |
+| :--- | :--- | :--- |
+| **Default Conversion** (Uses built-in `Adblock.yaml`) | Pass the subscription link via `sub` | `https://your-worker.workers.dev/?sub=<url-encoded-sub-link>` |
+| **Switch to OpenWrt Template** | Use `config=openwrt` | `https://your-worker.workers.dev/?sub=<sub-link>&config=openwrt` |
+| **Specify Adblock Template** | Explicitly load built-in `Adblock` template | `https://your-worker.workers.dev/?sub=<sub-link>&config=adblock` |
+| **Fetch Remote GitHub Template** | Pass a complete remote YAML link | `https://your-worker.workers.dev/?sub=<sub-link>&config=https%3A%2F%2Fraw.githubusercontent.com%2F...` |
+| **Dynamic Node Filtering** | Use `exclude` with regex (supports `\|`) | `https://your-worker.workers.dev/?sub=<sub-link>&exclude=multiplier%7Cgame%7CIPLC` |
+| **Multi-Subscription Merge** | Use `\|` to combine multiple links | `https://your-worker.workers.dev/?sub=<sub1>%7C<sub2>&config=openwrt` |
+
+> **⚠️ Notes**:
+> 1. **URL Encoding**: Separators like `:`, `/`, `?`, `&`, `=`, and `|` in parameters must be URL-encoded (e.g., via `encodeURIComponent`), while non-reserved characters like `.` and `-` do not necessarily need encoding.
+> 2. **Automatic Blacklist**: A built-in global blacklist automatically filters out invalid nodes containing keywords like "version", "remaining traffic", "expiration", "official website", or "announcements".
+
+---
+
+## 🛠️ Built-in Configuration Templates
+
+The project comes with two ready-to-use Mihomo (Clash Meta) YAML templates located in the `src/config/` directory:
+
+1. **`Adblock.yaml`** (Default):
+   * Includes comprehensive ad-blocking rules, routing rule sets, and full regional auto-test proxy groups.
+2. **`openwrt.yaml`**:
+   * A streamlined template optimized for soft routers and specific routing requirements.
+
+---
+
+## 💻 Local Development & Debugging
+
+1. Install dependencies:
+   ```bash
+   npm install
 
 ## 🚀 Quick Start
 
-### One-Click Deployment
-- Choose a "deploy" button above to click
-- That's it! See the [Document](https://sublink.works/guide/quick-start/) for more information.
-
 ### Alternative Runtimes
 - **Node.js**: `npm run build:node && node dist/node-server.cjs`
-- **Vercel**: `vercel deploy` (configure KV in project settings)
-- **Docker**: `docker pull ghcr.io/7sageer/sublink-worker:latest`
-- **Docker Compose**: `docker compose up -d` (includes Redis)
 
 ## ✨ Features
 

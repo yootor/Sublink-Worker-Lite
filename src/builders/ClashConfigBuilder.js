@@ -4,12 +4,12 @@ import { addProxyWithDedup } from './helpers/proxyHelpers.js';
 import adblockTemplateYaml from '../config/Adblock.yaml';
 import openwrtTemplateYaml from '../config/OpenWrt.yaml';
 
-// 项目内置模板字典（忽略大小写，支持带或不带 .yaml 后缀）
+// 统一将 Key 全部转换为小写，彻底解决大小写不匹配问题
 const BUILTIN_TEMPLATES = {
     'adblock': adblockTemplateYaml,
     'adblock.yaml': adblockTemplateYaml,
-    'OpenWrt': openwrtTemplateYaml,
-    'OpenWrt.yaml': openwrtTemplateYaml,
+    'openwrt': openwrtTemplateYaml,
+    'openwrt.yaml': openwrtTemplateYaml,
 };
 
 function getClashUdpValue(proxy, defaultEnabled = true) {
