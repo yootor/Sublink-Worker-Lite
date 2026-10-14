@@ -2,7 +2,9 @@
   <h1><b>Sublink Worker Lite</b></h1>
   <h5><i>One Worker, All Subscriptions</i></h5>
 
-Based on [sublink-Worker](https://github.com/sublink-network/sublink), this is a minimalist, high-performance subscription converter and node processing tool running on Cloudflare Workers. It strips away bulky web UIs and redundant components, focusing entirely on **"protocol parsing + remote template merging + intelligent node filtering"**, with full support for modern proxy protocols like anytls (including `sni` retention).
+
+
+Based on the [sublink-worker](https://github.com/7Sageer/sublink-worker) project and refactored with the assistance of **Gemini**, this is a minimalist, high-performance subscription converter and node processing tool running on Cloudflare Workers. It strips away bulky web UIs and redundant components, focusing entirely on **"protocol parsing + remote template merging + intelligent node filtering"**, with full support for modern proxy protocols like anytls (including `sni` retention).
 
 ---
 
@@ -17,11 +19,12 @@ Once deployed to your Cloudflare Worker, you can dynamically control the subscri
 | **Specify Adblock Template** | Explicitly load built-in `Adblock` template | `https://your-worker.workers.dev/?sub=<sub-link>&config=adblock` |
 | **Fetch Remote GitHub Template** | Pass a complete remote YAML link | `https://your-worker.workers.dev/?sub=<sub-link>&config=https%3A%2F%2Fraw.githubusercontent.com%2F...` |
 | **Dynamic Node Filtering** | Use `exclude` with regex (supports `\|`) | `https://your-worker.workers.dev/?sub=<sub-link>&exclude=multiplier%7Cgame%7CIPLC` |
+| **Custom Config Filename** | Use `filename` to set profile/download name | `https://your-worker.workers.dev/?sub=<sub-link>&filename=Nikki_Home` |
 | **Multi-Subscription Merge** | Use `\|` to combine multiple links | `https://your-worker.workers.dev/?sub=<sub1>%7C<sub2>&config=openwrt` |
 
 > **⚠️ Notes**:
-> 1. **URL Encoding**: Separators like `:`, `/`, `?`, `&`, `=`, and `|` in parameters must be URL-encoded (e.g., via `encodeURIComponent`), while non-reserved characters like `.` and `-` do not necessarily need encoding.
-> 2. **Automatic Blacklist**: A built-in global blacklist automatically filters out invalid nodes containing keywords like "version", "remaining traffic", "expiration", "official website", or "announcements".
+> 1. **URL Encoding**: Separators like `:`, `/`, `?`, `&`, `=`, and `|` in parameters must be URL-encoded (e.g., via `encodeURIComponent`), while non-reserved characters like `.` and `-` do not need encoding.
+> 2. **Automatic Blacklist & Country Flags**: A built-in global blacklist automatically removes invalid info nodes (e.g., version, traffic, expiration, announcements) and automatically prepends country flag emojis to valid nodes.
 
 ---
 
@@ -31,7 +34,7 @@ The project comes with two ready-to-use Mihomo (Clash Meta) YAML templates locat
 
 1. **`Adblock.yaml`** (Default):
    * Includes comprehensive ad-blocking rules, routing rule sets, and full regional auto-test proxy groups.
-2. **`openwrt.yaml`**:
+2. **`OpenWrt.yaml`**:
    * A streamlined template optimized for soft routers and specific routing requirements.
 
 ---
