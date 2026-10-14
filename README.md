@@ -2,9 +2,9 @@
   <h1><b>Sublink Worker Lite</b></h1>
   <h5><i>One Worker, All Subscriptions</i></h5>
 
+# Sublink Worker Lite
 
-
-Based on the [sublink-worker](https://github.com/7Sageer/sublink-worker) project and refactored with the assistance of **Gemini**, this is a minimalist, high-performance subscription converter and node processing tool running on Cloudflare Workers. It strips away bulky web UIs and redundant components, focusing entirely on **"protocol parsing + remote template merging + intelligent node filtering"**, with full support for modern proxy protocols like anytls (including `sni` retention).
+Based on the [sublink-worker](https://github.com/sublink-network/sublink) project and refactored with the assistance of **Gemini**, this is a minimalist, high-performance subscription converter and node processing tool running on Cloudflare Workers. It strips away bulky web UIs and redundant components, focusing entirely on **"protocol parsing + remote template merging + intelligent node filtering"**, with full support for modern proxy protocols like anytls (including `sni` retention).
 
 ---
 
@@ -39,6 +39,21 @@ The project comes with two ready-to-use Mihomo (Clash Meta) YAML templates locat
 
 ---
 
+## ☁️ Cloudflare Deployment
+
+You can easily deploy this project using Cloudflare's native Git integration:
+
+1. Authorize GitHub in your Cloudflare dashboard and select your forked `sublink-worker` repository.
+2. In **Build settings**:
+   * **Framework preset**: `None`
+   * **Build command**: `npm run deploy`
+   * **Build output directory**: Keep default
+3. Bind a custom domain (optional) to avoid `*.workers.dev` accessibility issues in certain regions.
+
+> **💡 Tip**: Make sure the `name` field in `wrangler.toml` matches the Worker name created in your Cloudflare dashboard.
+
+---
+
 ## 💻 Local Development & Debugging
 
 1. Install dependencies:
@@ -56,7 +71,7 @@ The project comes with two ready-to-use Mihomo (Clash Meta) YAML templates locat
 ShadowSocks • VMess • VLESS • Hysteria2 • Trojan • TUIC
 
 ### Client Support
-Sing-Box • Clash • Xray/V2Ray • Surge
+ Clash Mihomo
 
 ### Input Support
 - Base64 subscriptions
