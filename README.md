@@ -129,8 +129,6 @@ Built-in & remote YAML template injection
 
 Regex-based node filtering and automatic country flag emoji generation
 
-Spoofed subconverter User-Agent for maximum upstream compatibility
-
 🙏 Acknowledgments & Credits
 This lightweight project is derived from sublink-worker and customized with Gemini. Huge thanks to the original authors and contributors for their outstanding protocol parsing modules and community contributions!
 

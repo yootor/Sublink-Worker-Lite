@@ -4,7 +4,7 @@ import { parseSubscriptionContent } from '../parsers/subscription/subscriptionCo
 import { fetchSubscriptionWithFormat } from '../parsers/subscription/httpSubscriptionFetcher.js';
 
 export class BaseConfigBuilder {
-    constructor(inputString, baseConfig = {}, userAgent = 'subconverter/0.9.0') {
+    constructor(inputString, baseConfig = {}, userAgent = 'subconverter/0.9.2') {
         this.inputString = inputString;
         this.config = deepCopy(baseConfig || { proxies: [] });
         this.userAgent = userAgent;
