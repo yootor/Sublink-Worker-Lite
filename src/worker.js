@@ -90,7 +90,7 @@ export default {
         const filenameParam = url.searchParams.get('filename');
 
         try {
-            const userAgent = request.headers.get('User-Agent') || 'ClashMeta';
+            const userAgent = 'subconverter/0.9.2'
             const builder = new ClashConfigBuilder(subParam, configParam, excludeParam, env, userAgent);
             const yamlText = await builder.build();
 

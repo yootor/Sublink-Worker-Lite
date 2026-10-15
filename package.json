@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
+    "start": "node server.js",
     "deploy": "wrangler deploy"
   },
   "devDependencies": {

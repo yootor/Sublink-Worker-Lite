@@ -1,26 +1,25 @@
-
+<div align="center">
   <h1><b>Sublink Worker Lite</b></h1>
   <h5><i>One Worker, All Subscriptions</i></h5>
+</div>
 
-# Sublink Worker Lite
-
-Based on the [sublink-worker](https://github.com/sublink-network/sublink) project and refactored with the assistance of **Gemini**, this is a minimalist, high-performance subscription converter and node processing tool running on Cloudflare Workers. It strips away bulky web UIs and redundant components, focusing entirely on **"protocol parsing + remote template merging + intelligent node filtering"**, with full support for modern proxy protocols like anytls (including `sni` retention).
+Based on the [sublink-worker](https://github.com/sublink-network/sublink) project and refactored with the assistance of **Gemini**, this is a minimalist, high-performance subscription converter and node processing tool supporting both **Cloudflare Workers** and **VPS (Node.js)** deployments. It strips away bulky web UIs and redundant components, focusing entirely on **"protocol parsing + remote template merging + intelligent node filtering"**, with full support for modern proxy protocols like AnyTLS (including `sni` retention).
 
 ---
 
 ## 🚀 Usage Guide
 
-Once deployed to your Cloudflare Worker, you can dynamically control the subscription conversion via URL parameters.
+Once deployed to your Cloudflare Worker or VPS, you can dynamically control the subscription conversion via URL parameters.
 
 | Feature / Scenario | Parameter Description | Request URL Example |
 | :--- | :--- | :--- |
-| **Default Conversion** (Uses built-in `Adblock.yaml`) | Pass the subscription link via `sub` | `https://your-worker.workers.dev/?sub=<url-encoded-sub-link>` |
-| **Switch to OpenWrt Template** | Use `config=openwrt` | `https://your-worker.workers.dev/?sub=<sub-link>&config=openwrt` |
-| **Specify Adblock Template** | Explicitly load built-in `Adblock` template | `https://your-worker.workers.dev/?sub=<sub-link>&config=adblock` |
-| **Fetch Remote GitHub Template** | Pass a complete remote YAML link | `https://your-worker.workers.dev/?sub=<sub-link>&config=https%3A%2F%2Fraw.githubusercontent.com%2F...` |
-| **Dynamic Node Filtering** | Use `exclude` with regex (supports `\|`) | `https://your-worker.workers.dev/?sub=<sub-link>&exclude=multiplier%7Cgame%7CIPLC` |
-| **Custom Config Filename** | Use `filename` to set profile/download name | `https://your-worker.workers.dev/?sub=<sub-link>&filename=Nikki_Home` |
-| **Multi-Subscription Merge** | Use `\|` to combine multiple links | `https://your-worker.workers.dev/?sub=<sub1>%7C<sub2>&config=openwrt` |
+| **Default Conversion** (Uses built-in `Adblock.yaml`) | Pass the subscription link via `sub` | `https://your-domain.com/?sub=<url-encoded-sub-link>` |
+| **Switch to OpenWrt Template** | Use `config=openwrt` | `https://your-domain.com/?sub=<sub-link>&config=openwrt` |
+| **Specify Adblock Template** | Explicitly load built-in `Adblock` template | `https://your-domain.com/?sub=<sub-link>&config=adblock` |
+| **Fetch Remote GitHub Template** | Pass a complete remote YAML link | `https://your-domain.com/?sub=<sub-link>&config=https%3A%2F%2Fraw.githubusercontent.com%2F...` |
+| **Dynamic Node Filtering** | Use `exclude` with regex (supports `\|`) | `https://your-domain.com/?sub=<sub-link>&exclude=multiplier%7Cgame%7CIPLC` |
+| **Custom Config Filename** | Use `filename` to set profile/download name | `https://your-domain.com/?sub=<sub-link>&filename=Nikki_Home` |
+| **Multi-Subscription Merge** | Use `\|` to combine multiple links | `https://your-domain.com/?sub=<sub1>%7C<sub2>&config=openwrt` |
 
 > **⚠️ Notes**:
 > 1. **URL Encoding**: Separators like `:`, `/`, `?`, `&`, `=`, and `|` in parameters must be URL-encoded (e.g., via `encodeURIComponent`), while non-reserved characters like `.` and `-` do not need encoding.
@@ -39,7 +38,7 @@ The project comes with two ready-to-use Mihomo (Clash Meta) YAML templates locat
 
 ---
 
-## ☁️ Cloudflare Deployment
+## ☁️ Option 1: Cloudflare Workers Deployment
 
 You can easily deploy this project using Cloudflare's native Git integration:
 
@@ -54,46 +53,92 @@ You can easily deploy this project using Cloudflare's native Git integration:
 
 ---
 
+## 🖥️ Option 2: VPS (Node.js + Nginx) Deployment
+
+If certain upstream providers block Cloudflare Worker IPs, you can deploy the exact same codebase directly on a Linux VPS using `server.js`.
+
+### 1. Install Node.js (v22+) & PM2
+```bash
+sudo apt update && sudo apt install -y curl git nginx
+curl -fsSL [https://deb.nodesource.com/setup_current.x](https://deb.nodesource.com/setup_current.x) | sudo -E bash -
+sudo apt install -y nodejs
+sudo npm install -g pm2
+```
+
+### 2. Clone Repository & Start Service
+```bash
+cd /opt
+sudo git clone https://github.com/yootor/Sublink-Worker-Lite
+# 2. Enter the project directory and install dependencies
+cd /opt/sublink-worker-Lite
+sudo npm install --omit=dev
+
+# Generate a random secret key for GitHub Webhook auto-updates
+openssl rand -hex 16
+
+# Start the server with PM2 (default port: 8787)
+PORT=25500 WEBHOOK_SECRET="your_generated_secret_key" pm2 start server.js --name "sublink" --update-env
+pm2 save && pm2 startup
+```
+
+### 3. Enable Automatic GitHub Updates (Optional)
+Go to your GitHub repository Settings -> Webhooks -> Add webhook.
+
+Payload URL: https://your-domain.com/webhook
+
+Content type: application/json
+
+Secret: Enter the WEBHOOK_SECRET set in Step 2.
+
+Select Just the push event and save. Every git push will now automatically verify the HMAC-SHA256 signature, pull the latest changes, and reload the service.
+
 ## 💻 Local Development & Debugging
+### 1. Install dependencies:
 
-1. Install dependencies:
-   ```bash
-   npm install
+```Bash
+npm install
+Run locally in Node.js mode (server.js):
+```
+### 2. Run locally in Node.js mode
+```Bash
+npm start
+```
+### 3. Run locally in Cloudflare Worker mode
+```bash
+npm run dev
+```
 
-## 🚀 Quick Start
+✨ Features
+Supported Protocols: ShadowSocks • VMess • VLESS • Hysteria2 • Trojan • TUIC • AnyTLS
 
-### Alternative Runtimes
-- **Node.js**: `npm run build:node && node dist/node-server.cjs`
+Client Support: Clash / Mihomo (Clash.Meta)
 
-## ✨ Features
+Input Formats:
 
-### Supported Protocols
-ShadowSocks • VMess • VLESS • Hysteria2 • Trojan • TUIC
+Base64 encoded subscriptions
 
-### Client Support
- Clash Mihomo
+Standalone proxy share links (vless://, anytls://, hy2://, etc.)
 
-### Input Support
-- Base64 subscriptions
-- HTTP/HTTPS subscriptions
-- Full configs (Sing-Box JSON, Clash YAML, Surge INI)
+Full configuration files (Sing-Box JSON, Clash YAML)
 
-### Core Capabilities
-- Import subscriptions from multiple sources
-- Generate fixed/random short links (KV-based)
-- Light/Dark theme toggle
-- Flexible API for script automation
-- Multi-language support (Chinese, English, Persian, Russian)
-- Web interface with predefined rule sets and customizable policy groups
+Core Capabilities:
 
-## 🤝 Contributing
+Multi-subscription merging and automatic node deduplication
 
+Built-in & remote YAML template injection
+
+Regex-based node filtering and automatic country flag emoji generation
+
+Spoofed subconverter User-Agent for maximum upstream compatibility
+
+🙏 Acknowledgments & Credits
+This lightweight project is derived from sublink-worker and customized with Gemini. Huge thanks to the original authors and contributors for their outstanding protocol parsing modules and community contributions!
+
+🤝 Contributing
 Issues and Pull Requests are welcome to improve this project.
 
-## 📄 License
+📄 License
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## ⚠️ Disclaimer
-
+⚠️ Disclaimer
 This project is for learning and exchange purposes only. Please do not use it for illegal purposes. All consequences resulting from the use of this project are solely the responsibility of the user and are not related to the developer.
