@@ -49,10 +49,17 @@ export default {
         const rawFilename = getRawQueryParam(url.search, 'filename');
 
         if (!rawSub) {
-            return new Response(
-                '用法: /?sub=<URL编码后的订阅链接>&config=<可选:模板名或远程链接>&exclude=<可选:排除正则>&filename=<可选:自定义文件名>',
-                { status: 400, headers: { 'Content-Type': 'text/plain; charset=utf-8' } }
-            );
+            const nginx404 = `<html>
+    <head><title>404 Not Found</title></head>
+    <body>
+    <center><h1>404 Not Found</h1></center>
+    <hr><center>nginx</center>
+    </body>
+    </html>`;
+            return new Response(nginx404, {
+                status: 404,
+                headers: { 'Content-Type': 'text/html; charset=utf-8' }
+            });
         }
 
         if (!isStrictUrlEncoded(rawSub)) {
