@@ -130,6 +130,13 @@ export default {
                 }
             });
         } catch (err) {
+            if (err.message === 'NO_NODE') {
+                return new Response('No Node.js: 订阅为空或未获取到有效节点', {
+                    status: 400,
+                    headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+                });
+            }
+
             return new Response(`转换失败: ${err.message}\n${err.stack || ''}`, {
                 status: 500,
                 headers: { 'Content-Type': 'text/plain; charset=utf-8' }

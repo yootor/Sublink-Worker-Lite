@@ -378,6 +378,11 @@ export class ClashConfigBuilder extends BaseConfigBuilder {
                     ...p,
                     name: addFlagToNodeName(p.name)
                 }));
+            
+            // 👇 未获取到订阅返回No node.js
+            if (proxies.length === 0) {
+            throw new Error('NO_NODE');
+            }    
     
         // 5. 同步回写过滤后的节点列表
             this.config.proxies = proxies;
