@@ -66,17 +66,24 @@ proxy-groups:
     filter: "(?i)(.*)"
     proxies: 
       - "🎊 🇭🇰 HongKong"
-      - "☘️ 🇸🇬 Singapore"
       - "🌎 🇺🇸 USA"
       - "DIRECT"
 
-  - name: 🤖 GG
+  - name: 🤖 AI
     type: select
     include-all: true
     filter: "(?i)(Singapore|新加坡|SG|狮|🇸🇬|美|US|🇺🇸|台|新北|彰化|Taiwan|🇨🇳|TW)"
     proxies: 
       - "🚀 Select"
-      - "☘️ 🇸🇬 Singapore"
+      - "🌎 🇺🇸 USA"
+
+  - name: 🦖 Google
+    type: select
+    include-all: true
+    filter: "(?i)(Singapore|新加坡|SG|狮|🇸🇬|美|US|🇺🇸|台|新北|彰化|Taiwan|🇨🇳|TW|香港|HK|🇭🇰|Hong Kong|HongKong)"
+    proxies: 
+      - "🚀 Select"
+      - "🎊 🇭🇰 HongKong"
       - "🌎 🇺🇸 USA"
 
   - name: 📺 Media
@@ -86,7 +93,6 @@ proxy-groups:
     proxies: 
       - "🚀 Select"
       - "🎊 🇭🇰 HongKong"
-      - "☘️ 🇸🇬 Singapore"
       - "🌎 🇺🇸 USA"
 
   - name: ✨ Microsoft
@@ -96,7 +102,6 @@ proxy-groups:
     proxies: 
       - "🚀 Select"
       - "🎊 🇭🇰 HongKong"
-      - "☘️ 🇸🇬 Singapore"
       - "🌎 🇺🇸 USA"
       - "DIRECT"
 
@@ -127,7 +132,6 @@ proxy-groups:
       - "🚀 Select"
       - "DIRECT"
       - "🎊 🇭🇰 HongKong"
-      - "☘️ 🇸🇬 Singapore"
       - "🌎 🇺🇸 USA"
 
   # --- 地区测速组 (原生正则过滤) ---
@@ -139,13 +143,13 @@ proxy-groups:
     interval: 500
     tolerance: 50
 
-  - name: ☘️ 🇸🇬 Singapore
-    type: url-test
-    include-all: true
-    filter: "(?i)(新加坡|SG|狮|🇸🇬|Singapore)"
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 500
-    tolerance: 50
+#  - name: ☘️ 🇸🇬 Singapore
+#    type: url-test
+#    include-all: true
+#    filter: "(?i)(新加坡|SG|狮|🇸🇬|Singapore)"
+#    url: "https://cp.cloudflare.com/generate_204"
+#    interval: 500
+#    tolerance: 50
 
   - name: 🌎 🇺🇸 USA
     type: url-test
@@ -175,6 +179,7 @@ rule-providers:
     format: mrs
     url: "https://raw.githubusercontent.com/yootor/ACL4SSR/master/Clash/Mrs/AdBlock.mrs"
     interval: 604800
+  #国外AI和Cloudflare  
   AI:
     type: http
     behavior: classical
@@ -228,8 +233,8 @@ rules:
   - RULE-SET,MyCN,🎯 Direct
   - RULE-SET,MyProxy,🚀 Select
   - RULE-SET,AdBlock,🍃 AdBlock
-  - RULE-SET,AI,🤖 GG
-  - RULE-SET,Google,🤖 GG
+  - RULE-SET,AI,🤖 AI
+  - RULE-SET,Google,🦖 Google
   - RULE-SET,Media,📺 Media
   - RULE-SET,Microsoft,✨ Microsoft
   - RULE-SET,ProxyGFW,🚀 Select
