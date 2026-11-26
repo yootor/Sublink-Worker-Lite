@@ -77,7 +77,7 @@ proxy-groups:
       - "🚀 Select"
       - "🌎 🇺🇸 USA"
 
-  - name: 🦖 Google
+  - name: ♊ Google
     type: select
     include-all: true
     filter: "(?i)(Singapore|新加坡|SG|狮|🇸🇬|美|US|🇺🇸|台|新北|彰化|Taiwan|🇨🇳|TW|香港|HK|🇭🇰|Hong Kong|HongKong)"
@@ -234,7 +234,7 @@ rules:
   - RULE-SET,MyProxy,🚀 Select
   - RULE-SET,AdBlock,🍃 AdBlock
   - RULE-SET,AI,🤖 AI
-  - RULE-SET,Google,🦖 Google
+  - RULE-SET,Google,♊ Google
   - RULE-SET,Media,📺 Media
   - RULE-SET,Microsoft,✨ Microsoft
   - RULE-SET,ProxyGFW,🚀 Select
